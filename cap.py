@@ -1,12 +1,7 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function, division
 import torch
 import argparse
-import torch.nn as nn
-import torch.nn.functional as F
 from models import ResnetEncoderDecoder
-import cv2
-import torchvision.models as models
 from utils import remove_rptch
 from safetensors import safe_open
 from torchvision import transforms as T
