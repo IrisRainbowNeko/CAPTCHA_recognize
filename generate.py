@@ -8,6 +8,7 @@ from PIL import ImageFont
 from tqdm import tqdm
 
 char_dict = '0123456789abcdefghijklmnopqrstuvwxyz'
+char_dict_pp = '0123456789abcdefghijklmnopqrstuvwxyz()+-*/='
 
 class FontCache:
     def __init__(self, font_paths, font_size_range=(24, 38)):
@@ -33,7 +34,7 @@ def generate_picture(width=120, height=40):
     return image
 
 
-def random_str(char_dict=char_dict):
+def random_str(char_dict=char_dict_pp):
     '''
     获取一个随机字符
     :return:
@@ -121,17 +122,15 @@ def draw_lines(image, line_count_range=(4, 7), line_width_range=(0, 0)) -> Image
     return image
 
 
-def cap_gen(data_root, name, width=120, height=40, scale_factor=4):
+def cap_gen(data_root, name, font_cache, str_count_rage=(4,4), width=120, height=40, scale_factor=4):
     """
     生成图片验证码,并对图片进行base64编码
     :return:
     """
-    font_paths = ['Arial.ttf']
-    font_size_range = (int(24 * scale_factor), int(38 * scale_factor))
-    font_cache = FontCache(font_paths, font_size_range=font_size_range)
 
     image = generate_picture(width=int(width * scale_factor), height=int(height * scale_factor))
-    text, image = draw_str(4, image, random.choice(font_paths), font_cache, font_size_range=font_size_range)
+    text, image = draw_str(random.randint(*str_count_rage), image,
+                            random.choice(font_paths), font_cache, font_size_range=font_size_range)
     image = draw_lines(image, line_width_range=(int(2 * scale_factor), int(4.5 * scale_factor)))
     image = image.resize((width, height), resample=Image.Resampling.BICUBIC)
 
@@ -141,17 +140,26 @@ def cap_gen(data_root, name, width=120, height=40, scale_factor=4):
 
 
 if __name__ == '__main__':
-    data_path = Path('data3/train')
+    data_path = Path('data_pp/train')
     data_path.mkdir(parents=True, exist_ok=True)
 
-    width_list = [80, 100, 120]
+    width_list = [80, 100, 120, 140]
     height_list = [35, 40, 45, 50]
+    scale_factor = 4
+
+    font_paths = ['Arial.ttf', 'SimSun.ttf']
+    font_size_range = (int(24 * scale_factor), int(38 * scale_factor))
+    font_cache = FontCache(font_paths, font_size_range=font_size_range)
 
     cap_dict = {}
     header = ['ID', 'label']
     for i in tqdm(range(0, 200000)):
-        cnt = cap_gen(data_path, i, width=random.choice(width_list), height=random.choice(height_list))
+        cnt = cap_gen(data_path, i, font_cache, str_count_rage=(3,6), width=random.choice(width_list),
+                       height=random.choice(height_list), scale_factor=scale_factor)
         cap_dict[f'{data_path.name}/{i}.jpg'] = cnt
+    # for i in tqdm(range(0, 1000)):
+    #     cnt = cap_gen(data_path, i, font_cache, width=100, height=40, scale_factor=scale_factor)
+    #     cap_dict[f'{data_path.name}/{i}.jpg'] = cnt
 
     with open(f'{data_path}.json', 'w') as f:
         json.dump(cap_dict, f, ensure_ascii=False, indent=2)

@@ -1,23 +1,25 @@
 from torch import nn
 import torch
+from torch.nn import functional as F
 from rainbowneko.evaluate import BaseMetric
 from rainbowneko.utils import KeyMapper
 from utils import remove_rptch
+from einops import rearrange
 
 
 class Precision(nn.Module):
     def forward(self, pred, label):
         '''
 
-        :param pred: [B,H*w,C]
+        :param pred: [B,H*W,C]
         :param label: [B,C]
         :return:
         '''
+        pred = rearrange(pred, 'b h w c -> b (h w) c')
 
         total_char_count = label[:, 1:].sum()
         pred_chars = pred.argmax(dim=2)
-        result = torch.zeros_like(label)
-        result.scatter_add_(1, pred_chars, torch.ones_like(pred, dtype=label.dtype))
+        result = F.one_hot(pred_chars, pred.size(2)).float().sum(dim=1)
         FN_count = torch.relu(label[:, 1:] - result[:, 1:]).sum()
         total_pred_count = pred_chars.count_nonzero()
         correct_count = total_char_count - FN_count
@@ -33,11 +35,11 @@ class Recall(nn.Module):
         :param label: [B,C]
         :return:
         '''
+        pred = rearrange(pred, 'b h w c -> b (h w) c')
 
         total_char_count = label[:, 1:].sum()
         pred_chars = pred.argmax(dim=2)
-        result = torch.zeros_like(label)
-        result.scatter_add_(1, pred_chars, torch.ones_like(pred, dtype=label.dtype))
+        result = F.one_hot(pred_chars, pred.size(2)).float().sum(dim=1)
         FN_count = torch.relu(label[:, 1:] - result[:, 1:]).sum()
         correct_count = total_char_count - FN_count
 
@@ -46,7 +48,7 @@ class Recall(nn.Module):
 class TextPreview(BaseMetric):
     def __init__(self, char_dict, device='cpu', key_map=None):
         super().__init__()
-        self.key_mapper = KeyMapper(key_map=key_map)
+        self.key_mapper = KeyMapper(key_map=key_map or KeyMapper.cls_map)
         self.device = device
         self.char_dict = char_dict
 
@@ -60,7 +62,9 @@ class TextPreview(BaseMetric):
         pred = pred + 1e-10
 
         pred = torch.max(pred, 2)[1].data.cpu().numpy()
-        pred = pred[0]  # sample #0
+        pred = pred[0]
+        label_i = label[0].cpu()
+        label_string = ' '.join([f'{self.char_dict[i]}:{li}' for i, li in enumerate(label_i) if li > 0])
 
         pred_string = ''.join(['%2s' % self.char_dict[pn] for pn in pred])
 
@@ -71,6 +75,7 @@ class TextPreview(BaseMetric):
 
         print(W, H)
         print(pred)
+        print('Label:', label_string)
         pred = pred.reshape((H, W)).T.reshape((H * W,))
         final_str = remove_rptch(''.join(self.char_dict[x] for x in pred if x))
         print(final_str)
