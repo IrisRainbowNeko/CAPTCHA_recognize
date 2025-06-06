@@ -14,6 +14,7 @@ from rainbowneko.models.wrapper import SingleWrapper
 from rainbowneko.parser import CfgWDModelParser, neko_cfg
 from rainbowneko.train.loss import LossContainer
 from rainbowneko.utils import CosineLR, ConstantLR
+import albumentations as A
 
 from cfgs.py.train import train_base, tuning_base
 from loss import ACE
@@ -108,9 +109,24 @@ def cfg_data():
             handler=HandlerChain(
                 load=LoadImageHandler(),
                 bucket=SizeBucket.handler, # bucket 会自带一些处理模块
-                image=ImageHandler(transform=T.Compose([
-                        T.ToTensor(),
-                        T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+                # image=ImageHandler(transform=T.Compose([
+                #         T.ToTensor(),
+                #         T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+                #     ]),
+                # ),
+                image=ImageHandler(transform=A.Compose([
+                        A.OneOf([
+                            A.AutoContrast(p=0.6),
+                            A.RandomGamma(p=0.4),
+                        ], p=0.3),
+                        A.ColorJitter(p=0.5),
+                        A.GaussNoise(std_range=(0.05, 0.2), p=0.3),
+                        A.OneOf([
+                            A.Blur(blur_limit=(1, 3), p=0.5),
+                            A.GaussianBlur(sigma_limit=(0.2, 2.0), p=0.5),
+                        ], p=0.2),
+                        A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+                        A.ToTensorV2(),
                     ]),
                 ),
                 label=LabelHandler(),
