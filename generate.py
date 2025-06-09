@@ -1,5 +1,6 @@
 import json
 import random
+import math
 from pathlib import Path
 
 from PIL import Image
@@ -11,15 +12,24 @@ char_dict = '0123456789abcdefghijklmnopqrstuvwxyz'
 char_dict_pp = '0123456789abcdefghijklmnopqrstuvwxyz()+-*/='
 
 class FontCache:
-    def __init__(self, font_paths, font_size_range=(24, 38)):
+    def __init__(self, font_root, font_size_range=(24, 38)):
         self.font_dict = {}
-        for font_path in font_paths:
-            self.font_dict[font_path] = {}
+        font_root = Path(font_root)
+        for font_path in font_root.iterdir():
+            self.font_dict[font_path.name] = {}
             for font_size in range(font_size_range[0], font_size_range[1]+1):
-                self.font_dict[font_path][font_size] = ImageFont.truetype(font_path, size=font_size)
+                self.font_dict[font_path.name][font_size] = ImageFont.truetype(font_path, size=font_size)
+        
+        self.font_names = list(self.font_dict.keys())
+        self.font_sizes = list(range(font_size_range[0], font_size_range[1]+1))
 
     def get(self, name, size):
         return self.font_dict[name][size]
+
+    def random_font(self):
+        font_name = random.choice(self.font_names)
+        font_size = random.choice(self.font_sizes)
+        return self.font_dict[font_name][font_size]
 
 
 def random_color(low=0, high=255):
@@ -43,7 +53,7 @@ def random_str(char_dict=char_dict_pp):
     return random_char
 
 
-def draw_str(count, image, font_name, font_cache, font_size_range=(24, 38), angle_range=(-15, 15)):
+def draw_str(count, image, font_cache:FontCache, angle_range=(-15, 15)):
     """
     在图片上写随机字符（带随机缩放和旋转）
     :param count: 字符数量
@@ -52,39 +62,48 @@ def draw_str(count, image, font_name, font_cache, font_size_range=(24, 38), angl
     :return: 验证码字符串和处理后的图片
     """
     temp = []
-    char_width = image.width // count  # 计算每个字符的平均宽度
+    avg_char_width = image.width // count  # 计算每个字符的平均宽度
 
     for i in range(count):
         random_char = random_str()
         temp.append(random_char)
 
-        # 随机缩放字体大小 (0.8-1.3倍)
-        scaled_font_size = random.randint(font_size_range[0], font_size_range[1])
-        font = font_cache.get(font_name, scaled_font_size)
+        # 随机字体与大小
+        font = font_cache.random_font()
+
+        # 计算字符的边界框
+        bbox = font.getbbox(random_char)
+        char_width = math.ceil(bbox[2] - bbox[0])  # 获取字符的宽度
+        char_height = math.ceil(bbox[3] - bbox[1])  # 获取字符的高度
+        char_x = 0
+        char_y = -bbox[1]  # 垂直居中
 
         # 随机旋转角度 (-30到30度)
         rotation_angle = random.randint(angle_range[0], angle_range[1])
 
         # 创建临时图片来绘制单个字符
         # 需要足够大的画布来容纳旋转后的字符
-        temp_img = Image.new('RGBA', (int(scaled_font_size * 0.5), scaled_font_size), (255, 255, 255, 0))
+        temp_img = Image.new('RGBA', (char_width, char_height), (255, 255, 255, 0))
         temp_draw = ImageDraw.Draw(temp_img)
 
         # 在临时图片中心绘制字符
         char_color = random_color()
-        temp_draw.text((0, 0), random_char, char_color, font=font)
+        temp_draw.text((char_x, char_y), random_char, char_color, font=font)
 
         # 旋转字符
         if rotation_angle != 0:
             temp_img = temp_img.rotate(rotation_angle, expand=True)
 
         # 计算粘贴位置
-        char_x = i * char_width  # + random.randint(-5, 5)
-        char_y = 3  # random.randint(-3, 3)
+        dy = (image.height - temp_img.height) // 2  # 垂直居中
+        ofy = (char_height*0.2)
+        ofx = (avg_char_width*0.15)
+        char_x = i * avg_char_width + int(random.gauss(0, ofx))
+        char_y = dy + int(random.gauss(0, ofy))
 
         # 确保不超出边界
         char_x = max(0, min(char_x, image.width - temp_img.width))
-        char_y = max(0, min(char_y, image.height - temp_img.height))
+        # char_y = max(0, min(char_y, image.height - temp_img.height))
 
         # 将旋转后的字符粘贴到主图片上
         if temp_img.mode == 'RGBA':
@@ -129,37 +148,35 @@ def cap_gen(data_root, name, font_cache, str_count_rage=(4,4), width=120, height
     """
 
     image = generate_picture(width=int(width * scale_factor), height=int(height * scale_factor))
-    text, image = draw_str(random.randint(*str_count_rage), image,
-                            random.choice(font_paths), font_cache, font_size_range=font_size_range)
+    text, image = draw_str(random.randint(*str_count_rage), image, font_cache)
     image = draw_lines(image, line_width_range=(int(2 * scale_factor), int(4.5 * scale_factor)))
     image = image.resize((width, height), resample=Image.Resampling.BICUBIC)
 
-    image.save(data_root / f'{name}.jpg', quality=80)  # 保存到BytesIO对象中, 格式为png
+    image.save(data_root / f'{name}.jpg', quality=100)  # 保存到BytesIO对象中, 格式为png
 
     return text
 
 
 if __name__ == '__main__':
-    data_path = Path('data_pp/train')
+    data_path = Path('data_pp_v2/test')
     data_path.mkdir(parents=True, exist_ok=True)
 
     width_list = [80, 100, 120, 140]
     height_list = [35, 40, 45, 50]
     scale_factor = 4
 
-    font_paths = ['Arial.ttf', 'SimSun.ttf']
     font_size_range = (int(24 * scale_factor), int(38 * scale_factor))
-    font_cache = FontCache(font_paths, font_size_range=font_size_range)
+    font_cache = FontCache('fonts/', font_size_range=font_size_range)
 
     cap_dict = {}
     header = ['ID', 'label']
-    for i in tqdm(range(0, 200000)):
-        cnt = cap_gen(data_path, i, font_cache, str_count_rage=(3,6), width=random.choice(width_list),
-                       height=random.choice(height_list), scale_factor=scale_factor)
-        cap_dict[f'{data_path.name}/{i}.jpg'] = cnt
-    # for i in tqdm(range(0, 1000)):
-    #     cnt = cap_gen(data_path, i, font_cache, width=100, height=40, scale_factor=scale_factor)
+    # for i in tqdm(range(0, 200000)):
+    #     cnt = cap_gen(data_path, i, font_cache, str_count_rage=(3,6), width=random.choice(width_list),
+    #                    height=random.choice(height_list), scale_factor=scale_factor)
     #     cap_dict[f'{data_path.name}/{i}.jpg'] = cnt
+    for i in tqdm(range(0, 1000)):
+        cnt = cap_gen(data_path, i, font_cache, width=100, height=40, scale_factor=scale_factor)
+        cap_dict[f'{data_path.name}/{i}.jpg'] = cnt
 
     with open(f'{data_path}.json', 'w') as f:
         json.dump(cap_dict, f, ensure_ascii=False, indent=2)

@@ -46,11 +46,12 @@ class Recall(nn.Module):
         return float(correct_count) / total_char_count
 
 class TextPreview(BaseMetric):
-    def __init__(self, char_dict, device='cpu', key_map=None):
+    def __init__(self, char_dict, num=3, device='cpu', key_map=None):
         super().__init__()
         self.key_mapper = KeyMapper(key_map=key_map or KeyMapper.cls_map)
         self.device = device
         self.char_dict = char_dict
+        self.num = num
 
     def reset(self):
         self.metric = None
@@ -62,24 +63,28 @@ class TextPreview(BaseMetric):
         pred = pred + 1e-10
 
         pred = torch.max(pred, 2)[1].data.cpu().numpy()
-        pred = pred[0]
-        label_i = label[0].cpu()
-        label_string = ' '.join([f'{self.char_dict[i]}:{li}' for i, li in enumerate(label_i) if li > 0])
 
-        pred_string = ''.join(['%2s' % self.char_dict[pn] for pn in pred])
+        final_str_list = []
+        for i in range(self.num):
+            pred_i = pred[i]
+            label_i = label[i].cpu()
+            label_string = ' '.join([f'{self.char_dict[i]}:{li}' for i, li in enumerate(label_i) if li > 0])
 
-        pred_string_set = [pred_string[i:i + W * 2] for i in range(0, len(pred_string), W * 2)]
-        print('Prediction: ')
-        for pre_str in pred_string_set:
-            print(pre_str)
+            pred_string = ''.join(['%2s' % self.char_dict[pn] for pn in pred_i])
 
-        print(W, H)
-        print(pred)
-        print('Label:', label_string)
-        pred = pred.reshape((H, W)).T.reshape((H * W,))
-        final_str = remove_rptch(''.join(self.char_dict[x] for x in pred if x))
-        print(final_str)
-        return final_str
+            pred_string_set = [pred_string[i:i + W * 2] for i in range(0, len(pred_string), W * 2)]
+            print('Prediction: ')
+            for pre_str in pred_string_set:
+                print(pre_str)
+
+            print(W, H)
+            print(pred_i)
+            print('Label:', label_string)
+            pred_i = pred_i.reshape((H, W)).T.reshape((H * W,))
+            final_str = remove_rptch(''.join(self.char_dict[x] for x in pred_i if x))
+            print(final_str)
+            final_str_list.append(final_str)
+        return ', '.join(final_str_list)
 
     def update(self, pred, inputs):
         if self.metric is None:

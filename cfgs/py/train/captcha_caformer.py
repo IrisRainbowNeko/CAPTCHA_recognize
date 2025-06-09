@@ -29,7 +29,7 @@ data_root = '/data1/dzy/CAPTCHA_recognize/data_pp_v2'
 def make_cfg():
     return dict(
         _base_=[train_base, tuning_base],
-        exp_dir='exps/captcha_pp-resnet-v4/',
+        exp_dir='exps/captcha_pp-caformer/',
 
         model_part=CfgWDModelParser([
             dict(
@@ -78,8 +78,8 @@ def make_cfg():
         ),
 
         model=dict(
-            name='ace-resnet18',
-            wrapper=partial(SingleWrapper, model=ResnetEncoderDecoder(char_dict, drop_rate=0.2, drop_path_rate=0.2))
+            name='ace-caformer-s18',
+            wrapper=partial(SingleWrapper, model=CaformerEncoderDecoder(char_dict, drop_rate=0.2, drop_path_rate=0.2))
         ),
 
         logger=[

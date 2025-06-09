@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import torch
 import argparse
-from models import ResnetEncoderDecoder
+from models import ResnetEncoderDecoder, CaformerEncoderDecoder
 from utils import remove_rptch
 from safetensors import safe_open
 from torchvision import transforms as T
@@ -10,12 +10,12 @@ from PIL import Image
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 char_dict = '_0123456789abcdefghijklmnopqrstuvwxyz'
-id_chr_map = {i: c for i, c in enumerate(char_dict)}
+char_dict_pp = '_0123456789abcdefghijklmnopqrstuvwxyz()+-*/='
 
 
 class Predictor:
-    def __init__(self, model_path, char_dict=char_dict):
-        self.model = ResnetEncoderDecoder(char_dict).to(device)
+    def __init__(self, model_path, char_dict=char_dict_pp):
+        self.model = CaformerEncoderDecoder(char_dict).to(device)
         self.model.eval()
         if str(device)=='cpu':
             check_point = self.load_safetensor(model_path, map_location=torch.device('cpu'))
@@ -61,8 +61,8 @@ class Predictor:
 
         pred_cls = torch.max(pred, 2)[1].data.cpu().numpy()[0]
 
-        pred_cls = pred_cls.reshape((H, W)).T.reshape((H * W,))
-        final_str = remove_rptch(''.join(self.char_dict[x] for x in pred_cls if x))
+        pred = pred_cls.reshape((H, W)).T.reshape((H * W,))
+        final_str = remove_rptch(''.join(self.char_dict[x] for x in pred if x))
         
         return pred_cls, final_str, (H, W)
 
@@ -84,12 +84,16 @@ class Predictor:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='CAPTCHA Recognizer')
-    parser.add_argument('--model_path', type=str, default='exps/captcha/ckpts/model-2000.safetensors', help='Path to the model file')
+    parser.add_argument('--model_path', type=str, default='exps/captcha_pp-caformer/ckpts/model-10000.safetensors', help='Path to the model file')
+    # parser.add_argument('--model_path', type=str, default='exps/captcha_pp-resnet-v4/ckpts/model-11400.safetensors', help='Path to the model file')
     parser.add_argument('--image_path', type=str, default=[
-            '/data1/dzy/CAPTCHA_recognize/data3/test/2.jpg',
+            '/data1/dzy/CAPTCHA_recognize/data_pp/test/2.jpg',
             '/data1/dzy/Verification_Code_CV_v1.1/imgs/00097.png',
             '/data1/dzy/Verification_Code_CV_v1.1/imgs/00098.png',
             '/data1/dzy/Verification_Code_CV_v1.1/imgs/00099.png',
+            '/data1/dzy/Verification_Code_CV_v1.1/imgs/00085.png',
+            '/data1/dzy/Verification_Code_CV_v1.1/imgs/00086.png',
+            '/data1/dzy/Verification_Code_CV_v1.1/imgs/00087.png',
         ], nargs='+', help='Path to the image file')
     args = parser.parse_args()
 

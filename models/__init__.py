@@ -1,1 +1,1 @@
-from .enc_dec import ResnetEncoderDecoder
+from .enc_dec import ResnetEncoderDecoder, CaformerEncoderDecoder
